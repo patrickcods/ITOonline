@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>ITO Online - HTML + Firebase</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--muted:#9aa4b2;--accent:#10b981}
+    *{box-sizing:border-box}
+    body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:linear-gradient(180deg,#071426 0%, #081426 100%);color:#e6eef6;padding:18px}
+    .wrap{max-width:980px;margin:0 auto}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+    h1{font-size:20px;margin:0}
+    .card{background:rgba(255,255,255,0.03);padding:14px;border-radius:12px;margin-bottom:12px;border:1px solid rgba(255,255,255,0.04)}
+    input,select,textarea,button{font:inherit}
+    input,select,textarea{background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);color:inherit;padding:8px;border-radius:8px;width:100%}
+    button{background:var(--accent);color:#042024;border:none;padding:8px 10px;border-radius:10px;cursor:pointer}
+    .muted{color:var(--muted);font-size:13px}
+    .grid{display:grid;gap:12px}
+    .cols-3{grid-template-columns:1fr 320px}
+    .players-list{display:flex;flex-direction:column;gap:8px}
+    .player{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:10px;background:rgba(255,255,255,0.02)}
+    .small{font-size:13px}
+    .btn-ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:#cfe7f2}
+    .linkbox{display:flex;gap:8px;align-items:center}
+    .hint-input{display:flex;gap:8px}
+    .order-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:10px;background:linear-gradient(90deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02))}
+    @media(max-width:840px){.cols-3{grid-template-columns:1fr} header{flex-direction:column;gap:10px} }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>ITO Online — versão HTML</h1>
+      <div class="muted">Compartilhe a sala na sua live • Repo: GitHub Pages</div>
+    </header>
+
+    <!-- SETUP -->
+    <div id="setup" class="card">
+      <div class="grid" style="grid-template-columns:1fr 260px;gap:10px">
+        <div>
+          <label class="small muted">Nome</label>
+          <input id="name" placeholder="Seu nome (ex: Patrick)" />
+        </div>
+        <div>
+          <label class="small muted">Código da Sala</label>
+          <input id="roomInput" placeholder="ex: 8Q2K (ou deixe vazio pra criar)" />
+        </div>
+      </div>
+
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button id="btnCreate">Criar Sala (host)</button>
+        <button id="btnJoin" class="btn-ghost">Entrar na Sala</button>
+        <button id="btnCopyLink" class="btn-ghost" style="margin-left:auto">Copiar link</button>
+      </div>
+
+      <div class="muted small" style="margin-top:12px">
+        Dica: quando criar a sala, compartilhe a URL (o código fica no hash #CODIGO). Players só precisam desse link e do nome.
+      </div>
+    </div>
+
+    <!-- GAME -->
+    <div id="gameUI" style="display:none">
+      <div class="card cols-3 grid">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <div>
+              <div class="small muted">Sala</div>
+              <div id="roomId" style="font-weight:700;font-size:18px">—</div>
+              <div class="muted small" id="roundInfo">Rodada 1</div>
+            </div>
+            <div style="text-align:right">
+              <div class="muted small">Você:</div>
+              <div id="meName" style="font-weight:600">—</div>
+              <div id="meRole" class="muted small">—</div>
+            </div>
+          </div>
+
+          <hr style="border:none;height:8px" />
+
+          <!-- players -->
+          <div>
+            <div class="small muted">Jogadores</div>
+            <div id="players" class="players-list" style="margin-top:8px"></div>
+          </div>
+
+          <hr style="border:none;height:8px" />
+
+          <!-- phase panel -->
+          <div id="phasePanel"></div>
+        </div>
+
+        <!-- right column -->
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="card">
+            <div class="small muted">Tema</div>
+            <input id="themeInput" placeholder="Ex: Ardência de pimentas" />
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <input id="minRange" style="width:80px" type="number" placeholder="Min" value="1" />
+              <input id="maxRange" style="width:80px" type="number" placeholder="Max" value="100" />
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button id="btnDeal">Distribuir números (host)</button>
+              <button id="btnOrdering" class="btn-ghost">Ir pra ordenação</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="small muted">Ações rápidas</div>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button id="btnReveal" class="btn-ghost">Revelar</button>
+              <button id="btnNextRound" class="btn-ghost">Próxima rodada</button>
+            </div>
+            <div class="muted small" style="margin-top:8px">Host controla Deal / Ordenação / Revelar.</div>
+          </div>
+
+          <div class="card">
+            <div class="small muted">Link da sala</div>
+            <div class="linkbox" style="margin-top:8px">
+              <input id="roomLink" readonly style="background:transparent;border:none;color:#9fe9d0" />
+              <button id="btnCopyLink2" class="btn-ghost">Copiar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- order & reveal area -->
+      <div id="orderRevealArea" style="margin-top:12px"></div>
+    </div>
+  </div>
+
+  <!-- Firebase v9 via CDN (modular) -->
+  <script type="module">
+    // ---------- SUBSTITUA AQUI PELO SEU firebaseConfig ----------
+
+    const firebaseConfig = {
+        apiKey: "AIzaSyAbCzvApuufT2nXKh6f_h90u2P7WOsUP74",
+        authDomain: "ito-online-620e6.firebaseapp.com",
+        projectId: "ito-online-620e6",
+        storageBucket: "ito-online-620e6.firebasestorage.app",
+        messagingSenderId: "275100669541",
+        appId: "1:275100669541:web:366051288a8c209c0a988c",
+        measurementId: "G-5LHBN77142"
+    };
+    // -----------------------------------------------------------
+
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+    import {
+      getDatabase, ref, set, update, onValue, push, remove, runTransaction
+    } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-database.js";
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // --- Estado local
+    const uid = Math.random().toString(36).slice(2,9);
+    let isHost = false;
+    let currentRoom = null;
+    let myName = "";
+    let localRoomSnapshot = null;
+
+    // --- Elementos
+    const el = id => document.getElementById(id);
+    const btnCreate = el('btnCreate');
+    const btnJoin = el('btnJoin');
+    const btnCopyLink = el('btnCopyLink');
+    const btnCopyLink2 = el('btnCopyLink2');
+    const btnDeal = el('btnDeal');
+    const btnOrdering = el('btnOrdering');
+    const btnReveal = el('btnReveal');
+    const btnNextRound = el('btnNextRound');
+
+    // Setup handlers
+    btnCreate.addEventListener('click', createRoom);
+    btnJoin.addEventListener('click', joinRoom);
+    btnCopyLink.addEventListener('click', copyLink);
+    btnCopyLink2.addEventListener('click', copyLink);
+    btnDeal.addEventListener('click', startDeal);
+    btnOrdering.addEventListener('click', goOrdering);
+    btnReveal.addEventListener('click', revealNumbers);
+    btnNextRound.addEventListener('click', nextRound);
+
+    // init from hash
+    window.addEventListener('load', ()=>{
+      const hash = location.hash.replace('#','');
+      if(hash) el('roomInput').value = hash;
+    });
+
+    // -------------------- FUNÇÕES DE SALA --------------------
+    function createRoom(){
+      const r = (Math.random().toString(36).substr(2,4)).toUpperCase();
+      el('roomInput').value = r;
+      joinRoom(true);
+    }
+
+    function joinRoom(asHost=false){
+      myName = el('name').value.trim() || ('Player-'+uid);
+      const roomId = el('roomInput').value.trim().toUpperCase();
+      if(!roomId){ alert('Coloque um código de sala ou crie uma.'); return; }
+      currentRoom = roomId;
+      isHost = Boolean(asHost);
+      // write initial room if host
+      if(isHost){
+        set(ref(db, `rooms/${currentRoom}`), {
+          createdAt: Date.now(),
+          hostId: uid,
+          theme: el('themeInput').value || '',
+          range: { min: Number(el('minRange').value||1), max: Number(el('maxRange').value||100) },
+          phase: 'lobby',
+          round: 1,
+          players: {},
+          order: []
+        }).catch(()=>{}); // ignore errors for test mode
+      }
+      // add player node
+      update(ref(db, `rooms/${currentRoom}/players/${uid}`), {
+        id: uid,
+        name: myName,
+        hint: '',
+        number: null,
+        ready: false,
+        joinedAt: Date.now()
+      });
+      // update UI
+      el('setup').style.display = 'none';
+      el('gameUI').style.display = 'block';
+      el('meName').textContent = myName;
+      el('meRole').textContent = isHost ? 'Anfitrião' : 'Jogador';
+      el('roomId').textContent = currentRoom;
+      el('roomLink').value = location.origin + location.pathname + '#' + currentRoom;
+      // set hash
+      location.hash = currentRoom;
+      // listen for changes
+      listenRoom();
+    }
+
+    function copyLink(){
+      const text = el('roomLink').value || (location.origin + location.pathname + '#' + el('roomInput').value.trim());
+      navigator.clipboard?.writeText(text);
+      alert('Link copiado!');
+    }
+
+    // -------------------- LISTENER --------------------
+    function listenRoom(){
+      const refRoom = ref(db, `rooms/${currentRoom}`);
+      onValue(refRoom, snap => {
+        const room = snap.val();
+        localRoomSnapshot = room || {};
+        renderRoom(room || {});
+      });
+      // listen players separately (speed)
+      onValue(ref(db, `rooms/${currentRoom}/players`), snap => {
+        renderPlayers(snap.val() || {});
+      });
+    }
+
+    // -------------------- RENDER --------------------
+    function renderRoom(room){
+      if(!room) return;
+      el('roundInfo').textContent = `Rodada ${room.round || 1} • Fase: ${room.phase || '—'}`;
+      if(room.theme !== undefined) el('themeInput').value = room.theme || '';
+      if(room.range) { el('minRange').value = room.range.min; el('maxRange').value = room.range.max; }
+
+      // phase panel
+      const panel = el('phasePanel');
+      panel.innerHTML = '';
+
+      const phase = room.phase || 'lobby';
+
+      if(phase === 'lobby'){
+        panel.innerHTML = `
+          <div class="small muted">Ainda em lobby. Aguarde jogadores.</div>
+          <div style="margin-top:8px">
+            <button id="btnSetTheme" class="btn-ghost">Salvar tema</button>
+          </div>
+        `;
+        panel.querySelector('#btnSetTheme').addEventListener('click', ()=>{
+          update(ref(db, `rooms/${currentRoom}`), { theme: el('themeInput').value || ''});
+          alert('Tema atualizado.');
+        });
+      }
+
+      if(phase === 'dealt'){
+        panel.innerHTML = '';
+        const me = (room.players && room.players[uid]) || null;
+        if(me){
+          panel.innerHTML = `
+            <div class="small muted">Seu número secreto</div>
+            <div style="font-weight:700;font-size:24px;margin-top:6px">${me.number ?? '—'}</div>
+            <div style="margin-top:8px" class="hint-input">
+              <input id="hintTxt" placeholder="Sua dica (sem falar o número)" />
+              <button id="btnSendHint" class="btn-ghost">Enviar dica</button>
+            </div>
+          `;
+          if(me.hint) el('hintTxt').value = me.hint;
+          panel.querySelector('#btnSendHint').addEventListener('click', ()=>{
+            const hint = el('hintTxt').value.trim();
+            update(ref(db, `rooms/${currentRoom}/players/${uid}`), { hint, ready: true });
+          });
+        } else {
+          panel.innerHTML = `<div class="small muted">Espere o host distribuir as cartas.</div>`;
+        }
+      }
+
+      if(phase === 'ordering'){
+        panel.innerHTML = `<div class="small muted">Ordenando: host move os itens. Jogadores veem as dicas.</div>`;
+      }
+
+      if(phase === 'reveal'){
+        panel.innerHTML = `<div class="small muted">Números revelados — confira o resultado abaixo.</div>`;
+      }
+
+      // order / reveal area:
+      renderOrderReveal(room);
+    }
+
+    function renderPlayers(playersObj){
+      const list = el('players');
+      list.innerHTML = '';
+      const arr = Object.values(playersObj || {}).sort((a,b)=> (a.joinedAt||0)-(b.joinedAt||0));
+      arr.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'player';
+        div.innerHTML = `<div><strong>${escapeHtml(p.name)}</strong><div class="muted small">${p.hint ? 'Dica: '+escapeHtml(p.hint) : ''}</div></div>
+                         <div class="small">${p.ready ? '✅' : ''}</div>`;
+        list.appendChild(div);
+      });
+    }
+
+    function renderOrderReveal(room){
+      const box = el('orderRevealArea');
+      box.innerHTML = '';
+      if(!room) return;
+
+      const order = room.order || [];
+      const players = room.players || {};
+      const phase = room.phase || 'lobby';
+
+      const container = document.createElement('div');
+      container.className = 'card';
+      // Build ordered list (if no order saved, fallback to players order)
+      const effectiveOrder = order.length ? order : Object.keys(players);
+
+      const ol = document.createElement('div');
+      ol.style.display = 'flex';
+      ol.style.flexDirection = 'column';
+      ol.style.gap = '8px';
+
+      effectiveOrder.forEach((id, idx)=>{
+        const p = players[id] || { name: '—', hint: '', number: null };
+        const item = document.createElement('div');
+        item.className = 'order-item';
+        item.innerHTML = `
+          <div>
+            <div style="font-weight:700">${idx+1}. ${escapeHtml(p.name)}</div>
+            <div class="muted small">Dica: ${escapeHtml(p.hint || '—')}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            ${phase === 'reveal' ? `<div style="font-weight:800">${p.number ?? '—'}</div>` : ''}
+            ${isHost && phase === 'ordering' ? `<div><button class="btn-ghost moveUp" data-id="${id}">▲</button><button class="btn-ghost moveDown" data-id="${id}">▼</button></div>` : ''}
+          </div>
+        `;
+        ol.appendChild(item);
+      });
+
+      container.appendChild(ol);
+      box.appendChild(container);
+
+      // attach move handlers
+      if(isHost && phase === 'ordering'){
+        const ups = container.querySelectorAll('.moveUp');
+        ups.forEach(btn => btn.addEventListener('click', ()=> moveInOrder(btn.dataset.id, -1)));
+        const downs = container.querySelectorAll('.moveDown');
+        downs.forEach(btn => btn.addEventListener('click', ()=> moveInOrder(btn.dataset.id, +1)));
+      }
+
+      // show summary of correctness in reveal phase
+      if(phase === 'reveal'){
+        const summary = document.createElement('div');
+        summary.className = 'card';
+        const nums = effectiveOrder.map(id => (players[id] && players[id].number) ?? null);
+        const breaks = [];
+        for(let i=1;i<nums.length;i++){ if(nums[i]==null||nums[i-1]==null) continue; if(nums[i] <= nums[i-1]) breaks.push(i); }
+        if(breaks.length === 0){
+          summary.innerHTML = `<div style="font-weight:700;color:#9fe9d0">Perfeito! Tudo em ordem 🎉</div>`;
+        } else {
+          summary.innerHTML = `<div style="font-weight:700;color:#f6b0b0">Erros: ${breaks.length}</div>
+            <div class="muted small">Posições com problema (i é índice): ${breaks.join(', ')}</div>`;
+        }
+        box.appendChild(summary);
+      }
+    }
+
+    // -------------------- JOGO: DISTRIBUIR / ORDER / REVEAL --------------------
+    function startDeal(){
+      if(!isHost) { alert('Somente o host pode distribuir.'); return; }
+      const room = localRoomSnapshot || {};
+      const players = Object.values(room.players || {});
+      if(players.length < 2) { alert('Precisa de pelo menos 2 jogadores.'); return; }
+      const min = Number(el('minRange').value||1), max = Number(el('maxRange').value||100);
+      if(max - min + 1 < players.length){ alert('Intervalo pequeno demais para jogadores.'); return; }
+
+      // generate unique numbers
+      const numbers = uniqueRandoms(players.length, min, max);
+      const updates = {};
+      players.forEach((p, i) => {
+        updates[p.id] = {
+          ...p,
+          number: numbers[i],
+          hint: '',
+          ready: false
+        };
+      });
+      // set room phase to dealt, save order default to insertion order
+      update(ref(db, `rooms/${currentRoom}`), {
+        phase: 'dealt',
+        order: players.map(p => p.id),
+        theme: el('themeInput').value || room.theme || '',
+        range: { min, max }
+      }).then(()=>{
+        // write players numbers/hint/ready
+        // can't update nested multiple nodes at once with update? we will write players node
+        set(ref(db, `rooms/${currentRoom}/players`), updates);
+      });
+    }
+
+    function goOrdering(){
+      if(!isHost){ alert('Somente host'); return; }
+      update(ref(db, `rooms/${currentRoom}`), { phase: 'ordering' });
+    }
+
+    function moveInOrder(id, delta){
+      // run simple transaction on order
+      const orderRef = ref(db, `rooms/${currentRoom}/order`);
+      runTransaction(orderRef, cur => {
+        if(!cur) return cur;
+        const idx = cur.indexOf(id);
+        if(idx === -1) return cur;
+        const to = Math.max(0, Math.min(cur.length-1, idx + delta));
+        if(to === idx) return cur;
+        const copy = [...cur];
+        copy.splice(idx,1);
+        copy.splice(to,0,id);
+        return copy;
+      });
+    }
+
+    function revealNumbers(){
+      if(!isHost){ alert('Somente host'); return; }
+      update(ref(db, `rooms/${currentRoom}`), { phase: 'reveal' });
+    }
+
+    function nextRound(){
+      if(!isHost){ alert('Somente host'); return; }
+      // increment round, clear numbers/hints/ready and set to lobby
+      const roomRef = ref(db, `rooms/${currentRoom}`);
+      runTransaction(roomRef, cur => {
+        if(!cur) return cur;
+        cur.phase = 'lobby';
+        cur.round = (cur.round || 1) + 1;
+        cur.order = [];
+        cur.theme = el('themeInput').value || cur.theme || '';
+        cur.range = { min: Number(el('minRange').value||1), max: Number(el('maxRange').value||100) };
+        // reset players numbers/hints/ready
+        if(cur.players){
+          Object.keys(cur.players).forEach(k=>{
+            cur.players[k].number = null;
+            cur.players[k].hint = '';
+            cur.players[k].ready = false;
+          });
+        }
+        return cur;
+      });
+    }
+
+    // -------------------- UTIL --------------------
+    function uniqueRandoms(n,min,max){
+      const arr = [];
+      for(let i=min;i<=max;i++) arr.push(i);
+      for(let i=arr.length-1;i>0;i--){
+        const j = Math.floor(Math.random()*(i+1));
+        [arr[i],arr[j]] = [arr[j],arr[i]];
+      }
+      return arr.slice(0,n);
+    }
+
+    function escapeHtml(s=''){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  </script>
+</body>
+</html>
+
